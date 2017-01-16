@@ -7,9 +7,9 @@
     vi interfaces
        auto eth0:0
        iface eth0:0 inet static
-       address
-       netmask
-       gateway
+       address 172.30.0.137
+       netmask 255.255.0.0
+       gateway 172.30.0.234
        dns-nameservers 223.5.5.5
     ifup eth0:0
 
