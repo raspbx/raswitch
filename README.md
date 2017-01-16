@@ -7,9 +7,9 @@
     vi interfaces
        auto eth0:0
        iface eth0:0 inet static
-       address 172.30.0.44
-       netmask 255.255.0.0
-       gateway 172.30.0.234
+       address
+       netmask
+       gateway
        dns-nameservers 223.5.5.5
     ifup eth0:0
 
@@ -27,6 +27,10 @@
     cd raswitch
     git init
     git config --global user.email wang.haitao@msn.com
+    git add README.md
+    git commit -m 'new file'
+    git remote add origin https://github.com/raswitch/raswitch.git 
+    git push -u origin master
 
     cd /usr/local/src
     apt-get install autoconf libtool-bin libjpeg-dev libsqlite3-dev libcurl4-openssl-dev libpcre3-dev libspeex-dev libspeexdsp-dev libldns-dev libedit-dev liblua5.2-dev libopus-dev libsndfile-dev
