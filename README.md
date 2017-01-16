@@ -21,6 +21,13 @@
     make install
     create_ap wlan0 eth0 MyAccessPoint MyPassPhrase
 
+    cd /usr/src
+    apt-get install git
+    mkdir raswitch
+    cd raswitch
+    git init
+    git config --global user.email wang.haitao@msn.com
+
     cd /usr/local/src
     apt-get install autoconf libtool-bin libjpeg-dev libsqlite3-dev libcurl4-openssl-dev libpcre3-dev libspeex-dev libspeexdsp-dev libldns-dev libedit-dev liblua5.2-dev libopus-dev libsndfile-dev
     wget http://files.freeswitch.org/releases/freeswitch/freeswitch-1.6.13.tar.gz
@@ -32,3 +39,4 @@
     make install
     make sounds-install
     make moh-install
+
