@@ -2129,10 +2129,7 @@ static void *SWITCH_THREAD_FUNC outbound_agent_thread_run(switch_thread_t *threa
 				h->agent_uuid = switch_core_strdup(h->pool, switch_core_session_get_uuid(agent_session));
 			} else {
 				switch_event_destroy(&ovars);
-				sql = switch_mprintf("UPDATE members SET state = 'Waiting', serving_agent = '', serving_system = '' WHERE rowid = '%q' AND state = 'Trying' AND system = 'single_box';", h->member_rowid);
-				cc_execute_sql(NULL, sql, NULL);
-				switch_safe_free(sql);
-				goto done;
+				goto failed;
 			}
 		}
 		if (switch_strlen_zero(h->member_session_uuid) && !switch_strlen_zero(h->member_originate_string)) {
@@ -2594,16 +2591,21 @@ static void *SWITCH_THREAD_FUNC outbound_agent_thread_run(switch_thread_t *threa
 				switch_channel_set_variable(member_channel, "cc_member_hangup_cause", switch_channel_cause2str(cause));
 			}
 		}
+failed:
 
 		sql = switch_mprintf("UPDATE members SET state = case state when '%q' then '%q' else state end, serving_agent = '', serving_system = ''"
-				" WHERE serving_agent = '%q' AND serving_system = '%q' AND uuid = '%q' AND system = 'single_box'",
+//				" WHERE serving_agent = '%q' AND serving_system = '%q' AND uuid = '%q' AND system = 'single_box'",
+				" WHERE serving_agent = '%q' AND serving_system = '%q' AND rowid = '%q' AND system = 'single_box'",
+
 				cc_member_state2str(CC_MEMBER_STATE_TRYING),	/* Only switch to Waiting from Trying (state may be set to Abandoned in callcenter_function()) */
 				cc_member_state2str(CC_MEMBER_STATE_WAITING),
-				h->agent_name, h->agent_system, h->member_uuid);
+//				h->agent_name, h->agent_system, h->member_uuid);
+				h->agent_name, h->agent_system, h->member_rowid);
+
 		cc_execute_sql(NULL, sql, NULL);
 		switch_safe_free(sql);
 
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member_session), SWITCH_LOG_DEBUG, "Agent %s Origination Canceled : %s\n", h->agent_name, switch_channel_cause2str(cause));
+//		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member_session), SWITCH_LOG_DEBUG, "Agent %s Origination Canceled : %s\n", h->agent_name, switch_channel_cause2str(cause));
 
 		switch (cause) {
 			/* When we hang-up agents that did not answer in ring-all strategy */
@@ -2636,8 +2638,8 @@ static void *SWITCH_THREAD_FUNC outbound_agent_thread_run(switch_thread_t *threa
 
 				/* Put Agent on break because he didn't answer often */
 				if (h->max_no_answer > 0 && (h->no_answer_count + 1) >= h->max_no_answer) {
-					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member_session), SWITCH_LOG_DEBUG, "Agent %s reach maximum no answer of %d, Putting agent on break\n",
-							h->agent_name, h->max_no_answer);
+//					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member_session), SWITCH_LOG_DEBUG, "Agent %s reach maximum no answer of %d, Putting agent on break\n",
+//							h->agent_name, h->max_no_answer);
 //					cc_agent_update("status", cc_agent_status2str(CC_AGENT_STATUS_ON_BREAK), h->agent_name);
 					cc_agent_update("status", "On Break", h->agent_name, NULL, NULL);
 
@@ -2652,7 +2654,7 @@ static void *SWITCH_THREAD_FUNC outbound_agent_thread_run(switch_thread_t *threa
 //			cc_agent_update("ready_time", ready_epoch , h->agent_name);
 			cc_agent_update("ready_time", ready_epoch, h->agent_name, NULL, NULL);
 
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member_session), SWITCH_LOG_DEBUG, "Agent %s sleeping for %d seconds\n", h->agent_name, delay_next_agent_call);
+//			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member_session), SWITCH_LOG_DEBUG, "Agent %s sleeping for %d seconds\n", h->agent_name, delay_next_agent_call);
 		}
 
 		/* Fire up event when contact agent fails */
@@ -2664,8 +2666,11 @@ static void *SWITCH_THREAD_FUNC outbound_agent_thread_run(switch_thread_t *threa
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Agent-System", h->agent_system);
 			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "CC-Agent-Called-Time", "%" SWITCH_TIME_T_FMT, t_agent_called);
 			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "CC-Agent-Aborted-Time", "%" SWITCH_TIME_T_FMT, local_epoch_time_now(NULL));
-			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-UUID", h->member_uuid);
-			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-Session-UUID", h->member_session_uuid);
+//			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-UUID", h->member_uuid);
+//			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-Session-UUID", h->member_session_uuid);
+			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-UUID", switch_str_nil(h->member_uuid));
+			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-Session-UUID", switch_str_nil(h->member_session_uuid));
+
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-CID-Name", h->member_cid_name);
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "CC-Member-CID-Number", h->member_cid_number);
 			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "CC-Member-Joined-Time", "%" SWITCH_TIME_T_FMT, t_member_called);
@@ -5128,7 +5133,7 @@ SWITCH_STANDARD_API(cc_config_api_function)
 								cc_execute_sql2str(NULL, NULL, sql, res, sizeof(res));
 								switch_safe_free(sql);
 								if (atoi(res) == 0) {
-									sql = switch_mprintf("INSERT INTO members (queue, cid_number, cid_name, joined_epoch, serving_agent, state) VALUES('%q', '%q', '%q', '%"SWITCH_TIME_T_FMT"', '', '%q');", argv[3], argv[4], (cid_name ? cid_name : ""), local_epoch_time_now(NULL), argv[5]);
+									sql = switch_mprintf("INSERT INTO members (queue, cid_number, cid_name, joined_epoch, serving_agent, state) VALUES('%q', '%q', '%q', '%"SWITCH_TIME_T_FMT"', '', '%q');", argv[3], argv[4], switch_str_nil(cid_name), local_epoch_time_now(NULL), argv[5]);
 									cc_execute_sql(NULL, sql, NULL);
 									switch_safe_free(sql);
 								}
@@ -5139,7 +5144,7 @@ SWITCH_STANDARD_API(cc_config_api_function)
 								cc_execute_sql2str(NULL, NULL, sql, res, sizeof(res));
 								switch_safe_free(sql);
 								if (atoi(res) == 0) {
-									sql = switch_mprintf("INSERT INTO members (queue, cid_number, cid_name, joined_epoch, serving_agent, state) VALUES('%q', '%q', '%q', '%"SWITCH_TIME_T_FMT"', '', '%q');", argv[3], argv[4], (cid_name ? cid_name : ""), local_epoch_time_now(NULL), argv[5]);
+									sql = switch_mprintf("INSERT INTO members (queue, cid_number, cid_name, joined_epoch, serving_agent, state) VALUES('%q', '%q', '%q', '%"SWITCH_TIME_T_FMT"', '', '%q');", argv[3], argv[4], switch_str_nil(cid_name), local_epoch_time_now(NULL), argv[5]);
 									cc_execute_sql(NULL, sql, NULL);
 									switch_safe_free(sql);
 								}
